@@ -23,7 +23,7 @@ case class NPLMRelation(location: String, order : Int, vocabSize : Int)(@transie
 
   override def schema: StructType = StructType(
     StructField("label", DoubleType, nullable = false) :: 
-      (1 until order).map(order => StructField("features_"+order, VectorUDT())).toList 
+      (1 to order).map(order => StructField("features_"+order, VectorUDT())).toList 
       ::: Nil)
 
   override def buildScan(requiredColumns: Array[String]): RDD[Row] = {
