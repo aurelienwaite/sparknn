@@ -18,13 +18,13 @@ import org.apache.spark.sql.sources.RelationProvider
  * @author rorywaite
  */
 
-case class NPLMRelation(location: String, order : Int, vocabSize : Int)(@transient val sqlContext: SQLContext) extends BaseRelation
+case class NPLMRelation(location: String)(@transient val sqlContext: SQLContext) extends BaseRelation
     with PrunedScan with Logging {
 
   override def schema: StructType = StructType(
     StructField("label", DoubleType, nullable = false) :: 
-      (1 to order).map(order => StructField("features_"+order, VectorUDT())).toList 
-      ::: Nil)
+      StructField("words", VectorUDT())
+      :: Nil)
 
   override def buildScan(requiredColumns: Array[String]): RDD[Row] = {
     val sc = sqlContext.sparkContext
@@ -34,9 +34,8 @@ case class NPLMRelation(location: String, order : Int, vocabSize : Int)(@transie
       .map { line =>
         val items = line.split('\t')
         val label = items.last.toDouble
-        val featureVecs = items.head.split(' ').map(_.toInt)
-        .map(i => Vectors.sparse(vocabSize, List((i, 1.0))))
-        Row.fromSeq((label :: featureVecs.toList ))
+        val featureVec = Vectors.dense(items.head.split(' ').map(_.toDouble))
+        Row.fromTuple((label, featureVec ))
       }
   }
 
@@ -54,8 +53,6 @@ class DefaultSource extends RelationProvider {
 
   override def createRelation(sqlContext: SQLContext, parameters: Map[String, String]) = {
     val path = parameters.getOrElse("path", sys.error("'path' must be specified for NPLM data."))
-    val order = parameters.getOrElse("order", sys.error("'order' must be specified for NPLM data."))
-    val vocabSize = parameters.getOrElse("vocabSize", sys.error("'vocabSize' must be specified for NPLM data."))
-    new NPLMRelation(path, order.toInt, vocabSize.toInt)(sqlContext)
+    new NPLMRelation(path)(sqlContext)
   }
 }
