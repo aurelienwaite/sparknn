@@ -96,16 +96,17 @@ object NPLMExample {
       .learningRate(1e-3)
       .l1(0.3)
       .constrainGradientToUnitNorm(true)
-      .list(3)
+      .list(4)
       .backward(true)
       .pretrain(false)
-      .hiddenLayerSizes(200, 50)
+      //First layer is a dummy to be override by the word embedding layer
+      .hiddenLayerSizes(0,200, 50)
       .`override`(0, new ConfOverride() {
         def overrideLayer(i: Int, builder: NeuralNetConfiguration.Builder): Unit = {
           builder.layer(new WordEmbeddingLayer(10, 50000))
         }
       })
-      .`override`(2, new ConfOverride() {
+      .`override`(3, new ConfOverride() {
         def overrideLayer(i: Int, builder: NeuralNetConfiguration.Builder) = {
           builder.activationFunction("softmax");
           builder.layer(new OutputLayer());

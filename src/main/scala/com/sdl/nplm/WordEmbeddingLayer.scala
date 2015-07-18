@@ -12,6 +12,11 @@ import org.deeplearning4j.optimize.api.IterationListener
 import scala.collection.JavaConversions._
 import com.sdl.nplm.params.WordEmbeddingLayerParamInitializer
 import com.sdl.nplm.params.WordEmbeddingLayerParamInitializer
+import org.deeplearning4j.nn.params.PretrainParamInitializer
+import org.deeplearning4j.nn.params.DefaultParamInitializer
+import org.deeplearning4j.nn.gradient.DefaultGradient
+import org.nd4j.linalg.indexing.NDArrayIndex
+import org.deeplearning4j.optimize.Solver
 
 /**
  * Represents the input layer to a Neural Probabilistic Language Model (NPLM).
@@ -37,6 +42,10 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
   var paramTable: java.util.Map[String, INDArray] = null
 
   private var index = 0
+  
+  lazy val solver = new Solver.Builder()
+                    .model(this).configure(conf)
+                    .build().getOptimizer()
 
   /**
    * The input is a vector of word indices. It is a compact representation of the very sparse
@@ -48,7 +57,6 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
   def activate(): INDArray = ???
   def activationMean(): INDArray = ???
   def backWard(x$1: org.deeplearning4j.nn.gradient.Gradient, x$2: org.deeplearning4j.nn.gradient.Gradient, x$3: INDArray, x$4: String): org.deeplearning4j.berkeley.Pair[org.deeplearning4j.nn.gradient.Gradient, org.deeplearning4j.nn.gradient.Gradient] = ???
-  def backwardGradient(x$1: INDArray, x$2: org.deeplearning4j.nn.api.Layer, x$3: org.deeplearning4j.nn.gradient.Gradient, x$4: INDArray): org.deeplearning4j.nn.gradient.Gradient = ???
   def calcGradient(x$1: org.deeplearning4j.nn.gradient.Gradient, x$2: org.nd4j.linalg.api.ndarray.INDArray): org.deeplearning4j.nn.gradient.Gradient = ???
   def derivativeActivation(x$1: INDArray): INDArray = ???
   def error(x$1: INDArray): org.deeplearning4j.nn.gradient.Gradient = ???
@@ -57,10 +65,11 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
   def transpose(): org.deeplearning4j.nn.api.Layer = ???
 
   // Members declared in org.deeplearning4j.nn.api.Model
-  def getParam(x$1: String): INDArray = ???
   def update(x$1: org.deeplearning4j.nn.gradient.Gradient): Unit = ???
 
   def initParams(): Unit = WordEmbeddingLayerParamInitializer.init(paramTable, conf)
+  
+  def getParam(key: String): INDArray = paramTable(key)
 
   /**
    * Perform step 1a) from the algorithm in Bengio 2003 p 1145
@@ -72,16 +81,15 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
     val vocabSize = confLayer.vocabSize
     val m = confLayer.embeddingDimension
     val C = paramTable(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS)
-    val ret = Nd4j.create(input.rows, m * input.columns)
-    for (i <- (0 until input.rows))
+    val ret = Nd4j.create(input.rows, m * input.columns)    
+    for (i <- (0 until input.rows)){
       // Concatenate word embedding vectors
       for (j <- (0 until input.columns)) {
-        val row = Nd4j.create(m * input.columns)
-        val wordIndex = input(i,j).toInt
-        val embeddedVector = C.getRow(wordIndex)
-        embeddedVector.putSlice(j * m, row)
-        ret.putRow(i, row)
+        val wordIndex = input(i, j).toInt
+        for(k <-(0 until m))
+          ret.put(i, m*j + k, C.getRow(wordIndex)(k))
       }
+    }
     ret
   }
 
@@ -108,10 +116,28 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
   def update(gradient: INDArray, paramType: String): Unit = {
     val C = paramTable.get(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS)
     val lr = conf.getLr
-    val m = conf.getLayer.asInstanceOf[com.sdl.nplm.conf.WordEmbeddingLayer].embeddingDimension
-    for (i <- (0 until input.length).reverse) {
-      C(input(i).toInt) += lr * gradient((i until (i * m)).toArray)
+    C -= gradient * lr
+  }
+
+  /**
+   * Aggregate the derivatives from the hidden layers
+   */
+  def backwardGradient(z: INDArray, nextLayer: Layer, gradient: Gradient, activation: INDArray): Gradient = {
+    val dW = gradient.gradientForVariable.getOrElse(DefaultParamInitializer.WEIGHT_KEY,
+      sys.error("Can't find gradient for " + DefaultParamInitializer.WEIGHT_KEY))
+    val cl = conf.getLayer.asInstanceOf[com.sdl.nplm.conf.WordEmbeddingLayer]
+    val m = cl.embeddingDimension
+    val dC = Nd4j.zeros(cl.vocabSize, m)
+    val ret = new DefaultGradient 
+    ret.setGradientFor(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS, dC)
+    for (i <- 0 until dW.rows) {
+      for(j <- (0 until activation.columns)){
+        val wordIndex = activation(i,j).toInt
+        val embedding = dW.getRow(i).get(NDArrayIndex.interval(j*m , j*m+m))
+        dC.getRow(wordIndex) += embedding
+      }
     }
+    ret
   }
 
   def setParams(params: INDArray) = {
@@ -150,7 +176,7 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
 
   def clear(): Unit = Unit
 
-  def getOptimizer(): org.deeplearning4j.optimize.api.ConvexOptimizer = null
+  def getOptimizer(): org.deeplearning4j.optimize.api.ConvexOptimizer = solver
 
   def preOutput(input: INDArray): INDArray = activate(input)
 
