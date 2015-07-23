@@ -12,7 +12,7 @@ import org.deeplearning4j.nn.api.Layer
 /**
  * @author rorywaite
  */
-case class WordEmbeddingLayer(embeddingDimension: Int, vocabSize: Int) extends org.deeplearning4j.nn.conf.layers.Layer with LayerFactory {
+case class WordEmbeddingLayer(embeddingDimension: Int, vocabSize: Int) extends org.deeplearning4j.nn.conf.layers.Layer with LayerFactory[Layer] {
 
   def create[E <: org.deeplearning4j.nn.api.Layer](conf: NeuralNetConfiguration, listeners: java.util.Collection[IterationListener], index: Int): E =
     create[E](conf, index, 0, listeners)

@@ -130,7 +130,7 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
     val dC = Nd4j.zeros(cl.vocabSize, m)
     val ret = new DefaultGradient 
     ret.setGradientFor(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS, dC)
-    for (i <- 0 until dW.rows) {
+    for (i <- 0 until activation.rows) {
       for(j <- (0 until activation.columns)){
         val wordIndex = activation(i,j).toInt
         val embedding = dW.getRow(i).get(NDArrayIndex.interval(j*m , j*m+m))

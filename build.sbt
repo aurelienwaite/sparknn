@@ -14,7 +14,7 @@ libraryDependencies ++= Seq(
 		    "org.apache.spark" %% "spark-mllib" % "1.3.0",
 		    "org.deeplearning4j" % "dl4j-spark-ml" % "0.0.3.3.5.alpha2-SNAPSHOT",
 		    "org.nd4j" % "nd4j-jblas" % "0.0.3.5.5.6-SNAPSHOT", 
-		    "org.nd4j" % "nd4j-scala-api" % "0.0.3.5.5.6-SNAPSHOT", 
+		    "org.nd4j" %% "nd4s" % "0.0.3.5.5.6-SNAPSHOT", 
 		    "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.4.1",
 		    "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 		    )

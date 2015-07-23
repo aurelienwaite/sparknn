@@ -2,24 +2,36 @@ package com.sdl.nplm.example
 
 import java.io.File
 import java.io.FileWriter
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Paths
+
+import scala.collection.JavaConversions.seqAsJavaList
 import scala.io.Source
+
 import org.apache.spark.SparkConf
 import org.apache.spark.SparkContext
-import org.apache.spark.sql.SQLContext
-import com.sdl.spark.sql.sources.nplm.DefaultSource
-import org.apache.spark.ml.feature.StandardScaler
 import org.apache.spark.ml.Pipeline
 import org.apache.spark.ml.PipelineStage
-import org.deeplearning4j.spark.ml.classification.NeuralNetworkClassification
+import org.apache.spark.sql.SQLContext
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration
-import org.deeplearning4j.nn.weights.WeightInit
-import org.deeplearning4j.nn.conf.layers.RBM
-import org.deeplearning4j.nn.conf.distribution.NormalDistribution
 import org.deeplearning4j.nn.conf.`override`.ConfOverride
-import com.sdl.nplm.conf.WordEmbeddingLayer
+import org.deeplearning4j.nn.conf.distribution.NormalDistribution
 import org.deeplearning4j.nn.conf.layers.OutputLayer
+import org.deeplearning4j.nn.conf.layers.RBM
+import org.deeplearning4j.nn.multilayer.MultiLayerNetwork
+import org.deeplearning4j.nn.params.DefaultParamInitializer
+import org.deeplearning4j.nn.weights.WeightInit
+import org.deeplearning4j.optimize.listeners.ScoreIterationListener
+import org.deeplearning4j.spark.ml.classification.NeuralNetworkClassification
+import org.nd4j.api.linalg.DSL.toRichNDArray
+import org.nd4j.linalg.api.ndarray.INDArray
 import org.nd4j.linalg.lossfunctions.LossFunctions
+
+import com.sdl.nplm.conf.WordEmbeddingLayer
+import com.sdl.nplm.params.WordEmbeddingLayerParamInitializer
+import com.sdl.spark.sql.sources.nplm.DefaultSource
 
 /**
  * A minimal example of the NPLM and a word embedding layer.
@@ -37,6 +49,9 @@ import org.nd4j.linalg.lossfunctions.LossFunctions
  */
 object NPLMExample {
   def main(args: Array[String]) {
+
+    writeParamsAndExit()
+
     val tmpFile = File.createTempFile("nplm_data", ".txt")
     tmpFile.deleteOnExit()
     val writer = new FileWriter(tmpFile)
@@ -94,26 +109,50 @@ object NPLMExample {
       .dist(new NormalDistribution(0, 1e-1))
       .activationFunction("relu")
       .learningRate(1e-3)
-      .l1(0.3)
+      .l1(0.0)
       .constrainGradientToUnitNorm(true)
       .list(4)
       .backward(true)
       .pretrain(false)
       //First layer is a dummy to be override by the word embedding layer
-      .hiddenLayerSizes(0,200, 50)
+      .hiddenLayerSizes(1000, 100, 50)
       .`override`(0, new ConfOverride() {
         def overrideLayer(i: Int, builder: NeuralNetConfiguration.Builder): Unit = {
-          builder.layer(new WordEmbeddingLayer(10, 50000))
+          builder.layer(new WordEmbeddingLayer(50, 30751)).activationFunction("identity")
         }
       })
       .`override`(3, new ConfOverride() {
         def overrideLayer(i: Int, builder: NeuralNetConfiguration.Builder) = {
-          builder.activationFunction("softmax");
-          builder.layer(new OutputLayer());
-          builder.lossFunction(LossFunctions.LossFunction.MCXENT);
+          builder.activationFunction("softmax").layer(new OutputLayer())
+            .lossFunction(LossFunctions.LossFunction.MCXENT);
         }
       })
       .build()
+  }
+
+  /**
+   * Used for initialising weights in nplm
+   */
+  def writeParamsAndExit() = {
+    val network = new MultiLayerNetwork(getConf())
+    network.init()
+    network.setListeners(List(new ScoreIterationListener(1)))
+
+    implicit def weightsToStrings(params: INDArray): String =
+      (for (i <- 0 until params.rows) yield (for (j <- 0 until params.columns) 
+        yield params(i,j).toString).mkString("\t")).mkString("\n") ++ "\n"
+
+    val buffer = new StringBuilder
+    
+    (buffer ++= "\n\\input_embeddings\n" ++= network.getLayer(0).getParam(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS) 
+       ++= "\n\\hidden_weights 1\n" ++= network.getLayer(1).getParam(DefaultParamInitializer.WEIGHT_KEY)
+       ++= "\n\\hidden_weights 2\n" ++= network.getLayer(2).getParam(DefaultParamInitializer.WEIGHT_KEY)
+       ++= "\n\\output_weights\n" ++= network.getLayer(3).getParam(DefaultParamInitializer.WEIGHT_KEY)
+       ++= "\n\\output_biases\n" ++= network.getLayer(3).getParam(DefaultParamInitializer.BIAS_KEY)
+       ++= "\n\\end")
+    Files.write(Paths.get("/tmp/nplm.txt"), buffer.toString.getBytes(StandardCharsets.UTF_8))
+
+    System.exit(0)
   }
 
 } 
