@@ -1,13 +1,12 @@
 package com.sdl.nplm.conf
 
-import com.fasterxml.jackson.annotation.JsonTypeInfo
-import org.deeplearning4j.nn.api.LayerFactory
-import org.deeplearning4j.optimize.api.IterationListener
-import org.deeplearning4j.nn.conf.NeuralNetConfiguration
-import com.sdl.nplm
-import com.sdl.nplm.params.WordEmbeddingLayerParamInitializer
-import org.nd4j.linalg.api.ndarray.INDArray
 import org.deeplearning4j.nn.api.Layer
+import org.deeplearning4j.nn.api.LayerFactory
+import org.deeplearning4j.nn.conf.NeuralNetConfiguration
+import org.deeplearning4j.optimize.api.IterationListener
+import org.nd4j.linalg.api.ndarray.INDArray
+
+import com.sdl.nplm.params.WordEmbeddingLayerParamInitializer
 
 /**
  * @author rorywaite

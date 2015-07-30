@@ -42,10 +42,10 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
   var paramTable: java.util.Map[String, INDArray] = null
 
   private var index = 0
-  
+
   lazy val solver = new Solver.Builder()
-                    .model(this).configure(conf)
-                    .build().getOptimizer()
+    .model(this).configure(conf)
+    .build().getOptimizer()
 
   /**
    * The input is a vector of word indices. It is a compact representation of the very sparse
@@ -68,7 +68,7 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
   def update(x$1: org.deeplearning4j.nn.gradient.Gradient): Unit = ???
 
   def initParams(): Unit = WordEmbeddingLayerParamInitializer.init(paramTable, conf)
-  
+
   def getParam(key: String): INDArray = paramTable(key)
 
   /**
@@ -81,14 +81,12 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
     val vocabSize = confLayer.vocabSize
     val m = confLayer.embeddingDimension
     val C = paramTable(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS)
-    val ret = Nd4j.create(input.rows, m * input.columns)    
-    for (i <- (0 until input.rows)){
+    val ret = Nd4j.create(input.rows, m * input.columns)
+    for (i <- 0 until input.rows; j <- 0 until input.columns) {
       // Concatenate word embedding vectors
-      for (j <- (0 until input.columns)) {
-        val wordIndex = input(i, j).toInt
-        for(k <-(0 until m))
-          ret.put(i, m*j + k, C.getRow(wordIndex)(k))
-      }
+      val wordIndex = input(i, j).toInt
+      for (k <- 0 until m)
+        ret.put(i, m * j + k, C.getRow(wordIndex)(k))
     }
     ret
   }
@@ -115,8 +113,7 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
    */
   def update(gradient: INDArray, paramType: String): Unit = {
     val C = paramTable.get(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS)
-    val lr = conf.getLr
-    C -= gradient * lr
+    C -= gradient
   }
 
   /**
@@ -128,14 +125,12 @@ class WordEmbeddingLayer(var conf: NeuralNetConfiguration) extends Layer {
     val cl = conf.getLayer.asInstanceOf[com.sdl.nplm.conf.WordEmbeddingLayer]
     val m = cl.embeddingDimension
     val dC = Nd4j.zeros(cl.vocabSize, m)
-    val ret = new DefaultGradient 
+    val ret = new DefaultGradient
     ret.setGradientFor(WordEmbeddingLayerParamInitializer.EMBEDDING_WEIGHTS, dC)
-    for (i <- 0 until activation.rows) {
-      for(j <- (0 until activation.columns)){
-        val wordIndex = activation(i,j).toInt
-        val embedding = dW.getRow(i).get(NDArrayIndex.interval(j*m , j*m+m))
-        dC.getRow(wordIndex) += embedding
-      }
+    for (i <- 0 until activation.rows; j <- 0 until activation.columns) {
+      val wordIndex = activation(i, j).toInt
+      val embedding = dW.getRow(i).get(NDArrayIndex.interval(j * m, j * m + m))
+      dC.getRow(wordIndex) += embedding
     }
     ret
   }
